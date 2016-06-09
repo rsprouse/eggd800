@@ -15,20 +15,32 @@ class GpioPins(EggD800HID):
     AD7689CHANNELS = 0xFF000000L  # 11111111000000000000000000000000
 
     @property
+    def bitmask(self):
+# TODO: gx_sel seems to work opposite to how it is intended
+# TODO: check nx_pressure
+# TODO: check preamp
+        if self.gx_sel is True:
+            self._bitmask |= GpioPins.GXSEL
+        else:
+            self._bitmask &= ~GpioPins.GXSEL
+        if self.nx_pressure is True:
+            self._bitmask |= GpioPins.NXPRESSURE
+        else:
+            self._bitmask &= ~GpioPins.NXPRESSURE
+        if self._low_mic_preamp:
+            self._bitmask |= GpioPins.LOWMICPREAMP
+        else:
+            self._bitmask &= ~GpioPins.LOWMICPREAMP
+        return self._bitmask
+
+    @bitmask.setter
+    def bitmask(self, val):
+        '''The bitmask attribute can be assigned as a single unit.'''
+        self._bitmask = val
+
+    @property
     def output_report(self):
         '''Output report based on current state of object attributes.'''
-        if self._channel2:
-            self.bitmask |= GpioPins.GXSEL
-        else:
-            self.bitmask &= ~GpioPins.GXSEL
-        if self._channel3:
-            self.bitmask |= GpioPins.NXPRESSURE
-        else:
-            self.bitmask &= ~GpioPins.NXPRESSURE
-        if self._low_mic_preamp:
-            self.bitmask |= GpioPins.LOWMICPREAMP
-        else:
-            self.bitmask &= ~GpioPins.LOWMICPREAMP
         rpt = bytearray(struct.pack(
             self.packed_fmt,
             self.report_num,
@@ -48,6 +60,9 @@ class GpioPins(EggD800HID):
             'I',        # bitmask (4 bytes)
         ))
         self.packed_size = 1 + 4
+        self.gx_sel = None
+        self.nx_pressure = None
+        self._low_mic_preamp = None
         self._set_from_handle()
         
     def _set_from_handle(self):
@@ -57,13 +72,13 @@ class GpioPins(EggD800HID):
         vals = struct.unpack('<I', bytearray(rpt[0:4]))
         self.bitmask = vals[0]
         if self.bitmask & GpioPins.GXSEL:
-            self._channel2 = 1  # TODO: use a meaningful value
+            self.gx_sel = True  # TODO: use a meaningful value
         else:
-            self._channel2 = 0
+            self.gx_sel = False
         if self.bitmask & GpioPins.NXPRESSURE:
-            self._channel3 = 1
+            self.nx_pressure = True 
         else:
-            self._channel3 = 0
+            self.nx_pressure = False
         if self.bitmask & GpioPins.LOWMICPREAMP:
             self._low_mic_preamp = 1
         else:

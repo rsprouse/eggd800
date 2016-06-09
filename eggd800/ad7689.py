@@ -70,3 +70,8 @@ class Ad7689(EggD800HID):
         self.num_channels = vals[0]
         self.data_rate = vals[1]
         self.channels = list(vals[2:10])
+
+    def select_channels(self, indexes):
+        '''Set the selected channels based on list of indexes.'''
+        for select_idx, channel_idx in enumerate(indexes):
+            self.channels[select_idx] = Ad7689._channels[channel_idx]
