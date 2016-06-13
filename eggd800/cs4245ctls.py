@@ -69,17 +69,16 @@ class Cs4245Ctls(EggD800HID):
     def _set_from_handle(self):
         '''Get object attributes from the HID handle.'''
         rpt = self.get_input_report()
-        # FIXME: don't hardcode format (and array indexes?)
-        vals = struct.unpack('<BBBBBBBBBBBB', bytearray(rpt[0:12]))
-        self.clock_freq = vals[0]
-        self.mic_preamp = vals[1]
-        self.acc_preamp = vals[2]
-        self.lx_agc = vals[3]
-        self.power_ctl = vals[4]
-        self.adc_ctl = vals[5]
-        self.aout_sel = vals[6]
-        self.dac_ctl = vals[7]
-        self.dac_ctl2 = vals[8]
-        self.dac_cha_vol = vals[9]
-        self.dac_chb_vol = vals[10]
-        self.irq_status = vals[11]
+        vals = struct.unpack(self.packed_fmt, bytearray(rpt))
+        self.clock_freq = vals[1]
+        self.mic_preamp = vals[2]
+        self.acc_preamp = vals[3]
+        self.lx_agc = vals[4]
+        self.power_ctl = vals[5]
+        self.adc_ctl = vals[6]
+        self.aout_sel = vals[7]
+        self.dac_ctl = vals[8]
+        self.dac_ctl2 = vals[9]
+        self.dac_cha_vol = vals[10]
+        self.dac_chb_vol = vals[11]
+        self.irq_status = vals[12]

@@ -65,11 +65,10 @@ class Ad7689(EggD800HID):
     def _set_from_handle(self):
         '''Get object attributes from the HID handle.'''
         rpt = self.get_input_report()
-        # FIXME: don't hardcode format (and array indexes?)
-        vals = struct.unpack('<IIHHHHHHHH', bytearray(rpt[0:24]))
-        self.num_channels = vals[0]
-        self.data_rate = vals[1]
-        self.channels = list(vals[2:10])
+        vals = struct.unpack(self.packed_fmt, bytearray(rpt))
+        self.num_channels = vals[1]
+        self.data_rate = vals[2]
+        self.channels = list(vals[3:11])
 
     def select_channels(self, indexes):
         '''Set the selected channels based on list of indexes.'''

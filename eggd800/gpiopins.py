@@ -68,9 +68,8 @@ class GpioPins(EggD800HID):
     def _set_from_handle(self):
         '''Get object attributes from the HID handle.'''
         rpt = self.get_input_report()
-        # FIXME: don't hardcode format (and array indexes?)
-        vals = struct.unpack('<I', bytearray(rpt[0:4]))
-        self.bitmask = vals[0]
+        vals = struct.unpack(self.packed_fmt, bytearray(rpt))
+        self.bitmask = vals[1]
         if self.bitmask & GpioPins.GXSEL:
             self.gx_sel = True  # TODO: use a meaningful value
         else:
