@@ -71,4 +71,4 @@ class Ad7689(EggD800HID):
         '''Set the selected channels based on list of indexes.'''
         for select_idx, channel_idx in enumerate(indexes):
             self.channels[select_idx] = Ad7689._channels[channel_idx]
-
+        self.num_channels = len(indexes)
