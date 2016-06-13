@@ -51,9 +51,6 @@ class GpioPins(EggD800HID):
     def __init__(self, hid_handle):
         self.report_num = 4
         self.h = hid_handle
-        # FIXME: packed_fmt cannot be used for both reading input reports and
-        # writing output reports (report number seems to be used for the latter
-        # but not the former)
         self.packed_fmt = ''.join((
             '<',        # usb bus is little-endian
             'B',        # report number (1 byte)

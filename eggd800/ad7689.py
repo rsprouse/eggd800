@@ -49,9 +49,6 @@ class Ad7689(EggD800HID):
         self.h = hid_handle
         self.num_channels = None
         self._data_rate = None
-        # FIXME: packed_fmt cannot be used for both reading input reports and
-        # writing output reports (report number seems to be used for the latter
-        # but not the former)
         self.packed_fmt = ''.join((
             '<',        # usb bus is little-endian
             'B',        # report number (1 byte)
@@ -74,3 +71,4 @@ class Ad7689(EggD800HID):
         '''Set the selected channels based on list of indexes.'''
         for select_idx, channel_idx in enumerate(indexes):
             self.channels[select_idx] = Ad7689._channels[channel_idx]
+
