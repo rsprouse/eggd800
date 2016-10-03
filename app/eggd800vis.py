@@ -6,6 +6,8 @@ import scipy.io.wavfile
 import scipy.signal
 import pyaudio
 
+from eggd800.signal import demux, butter_lowpass_filter
+
 from bokeh.io import curdoc
 from bokeh.layouts import row, column, widgetbox, gridplot
 from bokeh.models import ColumnDataSource, CustomJS
@@ -16,17 +18,6 @@ from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, Button
 from bokeh.plotting import figure, output_file, output_notebook, show
 from bokeh.document import without_document_lock
 from tornado import gen
-
-def butter_lowpass(cut, fs, order=3):
-    nyq = 0.5 * fs
-    cut = cut / nyq
-    b, a = scipy.signal.butter(order, cut, btype='low')
-    return b, a
-
-def butter_lowpass_filter(data, cut, fs, order=3):
-    b, a = butter_lowpass(cut, fs, order=order)
-    y = scipy.signal.lfilter(b, a, data)
-    return y
 
 def play_all():
     print('playing all')
@@ -58,12 +49,13 @@ def load_file(attrname, old, wav):
     global au, lx, p1, p2, lp_p1, lp_p2, rate, timepts
     (rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
     decim_factor = 2
-    au = scipy.signal.decimate(data[0::2,0], decim_factor)
-    lx = scipy.signal.decimate(data[0::2,1], decim_factor)
-    p2 = scipy.signal.decimate(data[1::2,0], decim_factor)
-    p1 = scipy.signal.decimate(data[1::2,1], decim_factor)
-    p1 = (p1 - 196.0) / 14.0   # phony calibration in cc/s
-    p2 = (p2 - 786.0) * 0.00122 # phony calibration in cmH2O
+    (au, lx, p1, p2) = demux(data)
+    au = scipy.signal.decimate(au, decim_factor)
+    lx = scipy.signal.decimate(lx, decim_factor)
+    p1 = scipy.signal.decimate(p1, decim_factor)
+    p2 = scipy.signal.decimate(p2, decim_factor)
+    #p1 = (p1 - 196.0) / 14.0   # phony calibration in cc/s
+    #p2 = (p2 - 786.0) * 0.00122 # phony calibration in cmH2O
     lp_p1 = butter_lowpass_filter(p1, cutoff, rate, order)
     lp_p2 = butter_lowpass_filter(p2, cutoff, rate, order)
     rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
