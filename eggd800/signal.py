@@ -1,6 +1,5 @@
 # Utility functinos for working with EGG-D800 signals.
 
-import scipy.io.wavfile
 import scipy.signal
 
 def demux(data, aero=True):
