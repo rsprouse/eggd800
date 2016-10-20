@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys
+import fnmatch
 import numpy as np
 import scipy.io.wavfile
 import scipy.signal
@@ -10,7 +11,7 @@ from eggd800.signal import demux, butter_lowpass_filter
 
 from bokeh.io import curdoc
 from bokeh.layouts import row, column, widgetbox, gridplot
-from bokeh.models import ColumnDataSource, CustomJS
+from bokeh.models import ColumnDataSource, CustomJS, Span, BoxAnnotation
 from bokeh.models.tools import \
      CrosshairTool, BoxZoomTool, BoxSelectTool, HoverTool, \
      PanTool, ResetTool, SaveTool, TapTool, WheelZoomTool
@@ -40,26 +41,31 @@ def play_all():
     pya.terminate()
 
 def get_filenames():
-    '''Get all the .wav files in the current working dir.'''
-    files = [name for name in os.listdir(datadir) if name.endswith('.wav')]
+    '''Walk datadir and get all .wav filenamess.'''
+    files = []
+    for root, dirnames, fnames in os.walk(datadir):
+        for fname in fnmatch.filter(fnames, '*.wav'):
+            files.append(os.path.join(root, fname))
     return files
 
 def load_file(attrname, old, wav):
     sys.stderr.write("++++++++++++++++++++++\n")
-    global au, lx, p1, p2, lp_p1, lp_p2, rate, timepts
-    (rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
+    global au, orig_au, lx, orig_lx, p1, orig_p1, p2, orig_p2, lp_p1, \
+        orig_lp_p1, lp_p2, orig_lp_p2, rate, orig_rate, timepts
+    (orig_rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
+    (orig_au, orig_lx, orig_p1, orig_p2) = demux(data)
+    orig_rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
+    orig_lp_p1 = butter_lowpass_filter(orig_p1, cutoff, orig_rate, order)
+    orig_lp_p2 = butter_lowpass_filter(orig_p2, cutoff, orig_rate, order)
     decim_factor = 2
-    (au, lx, p1, p2) = demux(data)
-    au = scipy.signal.decimate(au, decim_factor)
-    lx = scipy.signal.decimate(lx, decim_factor)
-    p1 = scipy.signal.decimate(p1, decim_factor)
-    p2 = scipy.signal.decimate(p2, decim_factor)
-    #p1 = (p1 - 196.0) / 14.0   # phony calibration in cc/s
-    #p2 = (p2 - 786.0) * 0.00122 # phony calibration in cmH2O
+    au = scipy.signal.decimate(orig_au, decim_factor)
+    lx = scipy.signal.decimate(orig_lx, decim_factor)
+    p1 = scipy.signal.decimate(orig_p1, decim_factor)
+    p2 = scipy.signal.decimate(orig_p2, decim_factor)
+    rate = orig_rate / decim_factor  # rate also reduced by decim_factor
     lp_p1 = butter_lowpass_filter(p1, cutoff, rate, order)
     lp_p2 = butter_lowpass_filter(p2, cutoff, rate, order)
-    rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
-    rate /= decim_factor  # rate also reduced by decim_factor
+    sys.stderr.write("++++++++++++++++++++++\n")
     timepts = np.arange(0, len(au)) / rate
     step = np.int16(np.round(len(au) / width / 4))
     source.data['x'] = timepts[0::step]
@@ -67,6 +73,7 @@ def load_file(attrname, old, wav):
     source.data['p1'] = lp_p1[0::step]
     source.data['p2'] = lp_p2[0::step]
     x_range.update(end=timepts[-1])
+    sys.stderr.write("++++++++++++++++++++++\n")
 
 def make_plot():
     '''Make the plot figures.'''
@@ -81,24 +88,30 @@ def make_plot():
     ts[0].line('x', 'au', source=source, tags=['update_ts'])
     ts[0].x_range.on_change('end', update_ts)
     ts[0].circle('x', 'au', source=source, size=0.1, tags=['update_ts'])
+    cursel = BoxAnnotation(left=0, right=0, fill_alpha=0.1, fill_color='blue', tags=['cursel'])
+    ts[0].add_layout(cursel)
     ts.append(figure(
             width=width, height=height,
-            title="Oral airflow", y_axis_label='ml/s',
+            title="P1", y_axis_label='',
             x_range=ts[0].x_range,
             tools=tools[1], webgl=True
         )
     )
     ts[1].line('x', 'p1', source=source, tags=['update_ts'])
     ts[1].circle('x', 'p1', source=source, size=0.1, tags=['update_ts'])
+    cursel = BoxAnnotation(left=0, right=0, fill_alpha=0.1, fill_color='blue', tags=['cursel'])
+    ts[1].add_layout(cursel)
     ts.append(figure(
             width=width, height=height,
-            title="Oral pressure", x_axis_label='seconds', y_axis_label='cmH2O',
+            title="P2", x_axis_label='seconds', y_axis_label='',
             x_range=ts[0].x_range,
             tools=tools[2], webgl=True
         )
     )
     ts[2].line('x', 'p2', source=source, tags=['update_ts'])
     ts[2].circle('x', 'p2', source=source, size=0.1, tags=['update_ts'])
+    cursel = BoxAnnotation(left=0, right=0, fill_alpha=0.1, fill_color='blue', tags=['cursel'])
+    ts[2].add_layout(cursel)
     gp = gridplot([[ts[0]], [ts[1]], [ts[2]]])
     return (gp, ts[0])
 
@@ -166,35 +179,41 @@ def selection_change(attr, old, new):
     sys.stderr.write("*****selection_change***********\n")
     ind = new['1d']['indices']
     if len(ind) > 1:
-        start = np.min(ind)
-        end = np.max(ind)
+        x1sel = np.min(ind) * step
+        x2sel = np.max(ind) * step
+        t1sel = x1sel / rate
+        t2sel = x2sel / rate
+        orig_x1sel = np.int(np.round((t1sel * orig_rate)))
+        orig_x2sel = np.int(np.round((t2sel * orig_rate)))
         msg = \
             'Time: {:0.2f}-{:0.2f} ({:0.2f})<br />'.format(
-                start / rate,
-                end / rate,
-                (end - start) / rate
+                t1sel, t2sel, (t2sel - t1sel)
             ) + \
                 'P1 mean: {:0.2f} sum: {:0.2f}<br />'.format(
-                np.mean(lp_p1[start:end]),
-                np.sum(lp_p1[start:end])
+                np.mean(orig_lp_p1[orig_x1sel:orig_x2sel]),
+                np.sum(orig_lp_p1[orig_x1sel:orig_x2sel])
             ) + \
                 'P2 mean: {:0.2f} sum: {:0.2f}'.format(
-            np.mean(lp_p2[start:end]),
-            np.sum(lp_p2[start:end])
+            np.mean(orig_lp_p2[orig_x1sel:orig_x2sel]),
+            np.sum(orig_lp_p2[orig_x1sel:orig_x2sel])
         )
         msgdiv.text = msg
+        for renderer in gp.select(dict(tags=['cursel'])):
+            renderer.left = t1sel
+            renderer.right = t2sel
     else:
         msgdiv.text = ''
 
 # Filename selector
 datadir = os.path.join(os.path.dirname(__file__), 'data')
-fsel = Select(options=['Select a file'] + get_filenames())
+fsel = Select(options=['Select a file'] + get_filenames(), width=600)
 
 msgdiv = Div(text='', width=400, height=50)
 
 step = None
-rate = None
-au = lx = p1 = p2 = lp_p1 = lp_p2 = timepts = []
+rate = orig_rate = None
+au = orig_au = lx = orig_lx = p1 = orig_p1 = p2 = orig_p2 = []
+lp_p1 = orig_lp_p1 = lp_p2 = orig_lp_p2 = timepts = []
 width = 800
 height = 200
 cutoff = 50
@@ -240,4 +259,3 @@ curdoc().add_root(row(fsel, msgdiv))
 (gp, ch0) = make_plot()
 x_range = ch0.x_range
 curdoc().add_root(row(gp))
-
