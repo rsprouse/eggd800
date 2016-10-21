@@ -17,7 +17,7 @@ from bokeh.models import ColumnDataSource, CustomJS, Span, BoxAnnotation
 from bokeh.models.tools import \
      CrosshairTool, BoxZoomTool, BoxSelectTool, HoverTool, \
      PanTool, ResetTool, SaveTool, TapTool, WheelZoomTool
-from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, Button
+from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, Toggle
 from bokeh.plotting import figure, output_file, output_notebook, show
 from bokeh.document import without_document_lock
 from tornado import gen
@@ -54,7 +54,6 @@ def load_calibration():
     '''Load calibration data and calculate calibration values.'''
 # TODO: handle different calibration measurements, not just one for datadir
     global p1_cal, p2_cal
-    p1_cal = p2_cal = dict()
     try:
         # Load the variables in 'calibration.py'.
         calglobals = runpy.run_path(
@@ -62,31 +61,73 @@ def load_calibration():
         )
 
         # Store the calibration data and the linear regression.
-        p1_cal['data'] = calglobals['p1_data']
+        p1_cal = dict(data=calglobals['p1_data'])
+        try:
+            p1_zero_idx = p1_cal['data']['refinputs'].index(0.0)
+            p1_offset = p1_cal['data']['measurements'][p1_zero_idx]
+        except IndexError:
+            p1_offset = 0.0
         p1_cal['regression'] = stats.linregress(
-            p1_cal['data']['refinputs'],
-            p1_cal['data']['measurements']
+            np.array(p1_cal['data']['measurements']) - p1_offset,
+            np.array(p1_cal['data']['refinputs'])
         )
-        p2_cal['data'] = calglobals['p2_data']
+
+        p2_cal = dict(data=calglobals['p2_data'])
+        try:
+            p2_zero_idx = p2_cal['data']['refinputs'].index(0.0)
+            p2_offset = p2_cal['data']['measurements'][p2_zero_idx]
+        except IndexError:
+            p2_offset = 0.0
         p2_cal['regression'] = stats.linregress(
-            p2_cal['data']['refinputs'],
-            p2_cal['data']['measurements']
+            np.array(p2_cal['data']['measurements']) - p2_offset,
+            np.array(p2_cal['data']['refinputs'])
         )
     except Exception as e:
 # TODO: print info/warning?
         print(e)
         p1_cal = None
         p2_cal = None
-    print(p1_cal)
-    print(p2_cal)
+    print('p1_cal: ', p1_cal)
+    print('p2_cal: ', p2_cal)
+
+def calibrate(sig, slope=1.0, intercept=0.0, zero_offset=0.0):
+    '''Calibrate a signal using slope, intercept, zero.'''
+    return (sig - zero_offset - intercept) * slope
 
 def load_file(attrname, old, wav):
     sys.stderr.write("++++++++++++++++++++++\n")
     global au, orig_au, lx, orig_lx, p1, orig_p1, p2, orig_p2, lp_p1, \
         orig_lp_p1, lp_p2, orig_lp_p2, rate, orig_rate, timepts
+    load_calibration()
+    print(p1_cal)
+    print(p2_cal)
     (orig_rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
     (orig_au, orig_lx, orig_p1, orig_p2) = demux(data)
     orig_rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
+    if p1_cal is not None:
+        try:
+            zero_idx = p1_cal['data']['refinputs'].index(0.0)
+            zero_offset = p1_cal['data']['measurements'][zero_idx]
+        except IndexError:
+            zero_offset = 0.0
+        orig_p1 = calibrate(
+            orig_p1,
+            p1_cal['regression'].slope,
+            p1_cal['regression'].intercept,
+            zero_offset
+        )
+    if p2_cal is not None:
+        try:
+            zero_idx = p2_cal['data']['refinputs'].index(0.0)
+            zero_offset = p2_cal['data']['measurements'][zero_idx]
+        except IndexError:
+            zero_offset = 0.0
+        orig_p2 = calibrate(
+            orig_p2,
+            p2_cal['regression'].slope,
+            p2_cal['regression'].intercept,
+            zero_offset
+        )
     orig_lp_p1 = butter_lowpass_filter(orig_p1, cutoff, orig_rate, order)
     orig_lp_p2 = butter_lowpass_filter(orig_p2, cutoff, orig_rate, order)
     decim_factor = 2
@@ -95,8 +136,10 @@ def load_file(attrname, old, wav):
     p1 = scipy.signal.decimate(orig_p1, decim_factor)
     p2 = scipy.signal.decimate(orig_p2, decim_factor)
     rate = orig_rate / decim_factor  # rate also reduced by decim_factor
+    print('done decimating')
     lp_p1 = butter_lowpass_filter(p1, cutoff, rate, order)
     lp_p2 = butter_lowpass_filter(p2, cutoff, rate, order)
+    print('done filtering 2')
     sys.stderr.write("++++++++++++++++++++++\n")
     timepts = np.arange(0, len(au)) / rate
     step = np.int16(np.round(len(au) / width / 4))
@@ -106,7 +149,6 @@ def load_file(attrname, old, wav):
     source.data['p2'] = lp_p2[0::step]
     x_range.update(end=timepts[-1])
     sys.stderr.write("++++++++++++++++++++++\n")
-    load_calibration()
 
 def make_plot():
     '''Make the plot figures.'''
@@ -115,7 +157,9 @@ def make_plot():
             width=width, height=height,
             title="Audio", y_axis_label=None,
             x_range=(0,30),
-            tools=tools[0], webgl=True
+            tools=tools[0], webgl=True,
+            tags=['audio_fig'],
+            logo=None
         )
     )
     ts[0].line('x', 'au', source=source, tags=['update_ts'])
@@ -127,7 +171,9 @@ def make_plot():
             width=width, height=height,
             title="P1", y_axis_label='',
             x_range=ts[0].x_range,
-            tools=tools[1], webgl=True
+            tools=tools[1], webgl=True,
+            tags=['p1_fig'],
+            logo=None
         )
     )
     ts[1].line('x', 'p1', source=source, tags=['update_ts'])
@@ -138,7 +184,9 @@ def make_plot():
             width=width, height=height,
             title="P2", x_axis_label='seconds', y_axis_label='',
             x_range=ts[0].x_range,
-            tools=tools[2], webgl=True
+            tools=tools[2], webgl=True,
+            tags=['p2_fig'],
+            logo=None
         )
     )
     ts[2].line('x', 'p2', source=source, tags=['update_ts'])
@@ -216,19 +264,33 @@ def selection_change(attr, old, new):
         x2sel = np.max(ind) * step
         t1sel = x1sel / rate
         t2sel = x2sel / rate
+        secs = t2sel - t1sel
         orig_x1sel = np.int(np.round((t1sel * orig_rate)))
         orig_x2sel = np.int(np.round((t2sel * orig_rate)))
+        num_sel = orig_x2sel - orig_x1sel + 1
+        p1_mean = np.mean(orig_lp_p1[orig_x1sel:orig_x2sel])
+        p2_mean = np.mean(orig_lp_p2[orig_x1sel:orig_x2sel])
+        if p1_cal is not None:
+            p1m_lab = p1_cal['data']['refunits']
+            p1s_lab = 'l'
+        else:
+            p1m_lab = 'raw'
+            p1s_lab = 'raw'
+        if p2_cal is not None:
+            p2m_lab = p2_cal['data']['refunits']
+            p2s_lab = 'l'
+        else:
+            p2m_lab = 'raw'
+            p2s_lab = 'raw'
         msg = \
             'Time: {:0.2f}-{:0.2f} ({:0.2f})<br />'.format(
-                t1sel, t2sel, (t2sel - t1sel)
+                t1sel, t2sel, secs
             ) + \
-                'P1 mean: {:0.2f} sum: {:0.2f}<br />'.format(
-                np.mean(orig_lp_p1[orig_x1sel:orig_x2sel]),
-                np.sum(orig_lp_p1[orig_x1sel:orig_x2sel])
+                'P1 mean: {:0.2f} {:}; sum: {:0.2f} {:}<br />'.format(
+                p1_mean, p1m_lab, p1_mean * secs, p1s_lab
             ) + \
-                'P2 mean: {:0.2f} sum: {:0.2f}'.format(
-            np.mean(orig_lp_p2[orig_x1sel:orig_x2sel]),
-            np.sum(orig_lp_p2[orig_x1sel:orig_x2sel])
+                'P2 mean: {:0.2f} {:}; sum: {:0.2f} {:}'.format(
+                p2_mean, p2m_lab, p2_mean * secs, p2s_lab
         )
         msgdiv.text = msg
         for renderer in gp.select(dict(tags=['cursel'])):
