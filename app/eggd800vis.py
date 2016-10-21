@@ -6,6 +6,8 @@ import numpy as np
 import scipy.io.wavfile
 import scipy.signal
 import pyaudio
+import runpy
+from scipy import stats
 
 from eggd800.signal import demux, butter_lowpass_filter
 
@@ -48,6 +50,36 @@ def get_filenames():
             files.append(os.path.join(root, fname))
     return files
 
+def load_calibration():
+    '''Load calibration data and calculate calibration values.'''
+# TODO: handle different calibration measurements, not just one for datadir
+    global p1_cal, p2_cal
+    p1_cal = p2_cal = dict()
+    try:
+        # Load the variables in 'calibration.py'.
+        calglobals = runpy.run_path(
+            os.path.join(datadir, 'calibration.py')
+        )
+
+        # Store the calibration data and the linear regression.
+        p1_cal['data'] = calglobals['p1_data']
+        p1_cal['regression'] = stats.linregress(
+            p1_cal['data']['refinputs'],
+            p1_cal['data']['measurements']
+        )
+        p2_cal['data'] = calglobals['p2_data']
+        p2_cal['regression'] = stats.linregress(
+            p2_cal['data']['refinputs'],
+            p2_cal['data']['measurements']
+        )
+    except Exception as e:
+# TODO: print info/warning?
+        print(e)
+        p1_cal = None
+        p2_cal = None
+    print(p1_cal)
+    print(p2_cal)
+
 def load_file(attrname, old, wav):
     sys.stderr.write("++++++++++++++++++++++\n")
     global au, orig_au, lx, orig_lx, p1, orig_p1, p2, orig_p2, lp_p1, \
@@ -74,6 +106,7 @@ def load_file(attrname, old, wav):
     source.data['p2'] = lp_p2[0::step]
     x_range.update(end=timepts[-1])
     sys.stderr.write("++++++++++++++++++++++\n")
+    load_calibration()
 
 def make_plot():
     '''Make the plot figures.'''
@@ -214,6 +247,7 @@ step = None
 rate = orig_rate = None
 au = orig_au = lx = orig_lx = p1 = orig_p1 = p2 = orig_p2 = []
 lp_p1 = orig_lp_p1 = lp_p2 = orig_lp_p2 = timepts = []
+p1_cal = p2_cal = None
 width = 800
 height = 200
 cutoff = 50
