@@ -97,13 +97,16 @@ def calibrate(sig, slope=1.0, intercept=0.0, zero_offset=0.0):
 def load_file(attrname, old, wav):
     sys.stderr.write("++++++++++++++++++++++\n")
     global au, orig_au, lx, orig_lx, p1, orig_p1, p2, orig_p2, lp_p1, \
-        orig_lp_p1, lp_p2, orig_lp_p2, rate, orig_rate, timepts
+        orig_lp_p1, lp_p2, orig_lp_p2, rate, orig_rate, timepts, \
+        raw_p1, raw_p2, raw_lp_p1, raw_lp_p2, raw_lp_decim_p1, raw_lp_decim_p2
     load_calibration()
     print(p1_cal)
     print(p2_cal)
     (orig_rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
-    (orig_au, orig_lx, orig_p1, orig_p2) = demux(data)
+    (orig_au, orig_lx, raw_p1, raw_p2) = demux(data)
     orig_rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
+    raw_lp_p1 = butter_lowpass_filter(raw_p1, cutoff, orig_rate, order)
+    raw_lp_p2 = butter_lowpass_filter(raw_p2, cutoff, orig_rate, order)
     if p1_cal is not None:
         try:
             zero_idx = p1_cal['data']['refinputs'].index(0.0)
@@ -111,7 +114,7 @@ def load_file(attrname, old, wav):
         except IndexError:
             zero_offset = 0.0
         orig_p1 = calibrate(
-            orig_p1,
+            raw_lp_p1,
             p1_cal['regression'].slope,
             p1_cal['regression'].intercept,
             zero_offset
@@ -123,7 +126,7 @@ def load_file(attrname, old, wav):
         except IndexError:
             zero_offset = 0.0
         orig_p2 = calibrate(
-            orig_p2,
+            raw_lp_p2,
             p2_cal['regression'].slope,
             p2_cal['regression'].intercept,
             zero_offset
@@ -134,7 +137,9 @@ def load_file(attrname, old, wav):
     au = scipy.signal.decimate(orig_au, decim_factor)
     lx = scipy.signal.decimate(orig_lx, decim_factor)
     p1 = scipy.signal.decimate(orig_p1, decim_factor)
+    raw_lp_decim_p1 = scipy.signal.decimate(raw_lp_p1, decim_factor)
     p2 = scipy.signal.decimate(orig_p2, decim_factor)
+    raw_lp_decim_p2 = scipy.signal.decimate(raw_lp_p2, decim_factor)
     rate = orig_rate / decim_factor  # rate also reduced by decim_factor
     print('done decimating')
     lp_p1 = butter_lowpass_filter(p1, cutoff, rate, order)
@@ -146,7 +151,9 @@ def load_file(attrname, old, wav):
     source.data['x'] = timepts[0::step]
     source.data['au'] = au[0::step]
     source.data['p1'] = lp_p1[0::step]
+    source.data['raw_lp_decim_p1'] = raw_lp_p1[0::step]
     source.data['p2'] = lp_p2[0::step]
+    source.data['raw_lp_decim_p2'] = raw_lp_p2[0::step]
     x_range.update(end=timepts[-1])
     sys.stderr.write("++++++++++++++++++++++\n")
 
@@ -228,7 +235,9 @@ def update_data(start, end):
         newsource['x'] = timepts[0::step]
         newsource['au'] = au[0::step]
         newsource['p1'] = lp_p1[0::step]
+        newsource['raw_lp_decim_p1'] = raw_lp_decim_p1[0::step]
         newsource['p2'] = lp_p2[0::step]
+        newsource['raw_lp_decim_p2'] = raw_lp_decim_p2[0::step]
         source.data = newsource
         for renderer in ch0.select(dict(tag='update_ts')):
             renderer.data_source.data = newsource
@@ -309,6 +318,7 @@ step = None
 rate = orig_rate = None
 au = orig_au = lx = orig_lx = p1 = orig_p1 = p2 = orig_p2 = []
 lp_p1 = orig_lp_p1 = lp_p2 = orig_lp_p2 = timepts = []
+raw_p1 = raw_p2 = raw_lp_p1 = raw_lp_p2 = raw_lp_decim_p1 = raw_lp_decim_p2 = []
 p1_cal = p2_cal = None
 width = 800
 height = 200
@@ -319,7 +329,9 @@ source = ColumnDataSource(
         x=timepts,
         au=au,
         p1=p1,
-        p2=p2
+        raw_lp_decim_p1=p1,
+        p2=p2,
+        raw_lp_decim_p2=p2
     )
 )
 
@@ -328,8 +340,8 @@ ts_cnt = np.arange(3)
 cross = [CrosshairTool() for n in ts_cnt]
 hover = [
     HoverTool(tooltips=[('time', '$x'), ('sample', '@x')]),
-    HoverTool(tooltips=[('time', '$x'), ('val', '@p1')]),
-    HoverTool(tooltips=[('time', '$x'), ('val', '@p2')])
+    HoverTool(tooltips=[('time', '$x'), ('val', '@p1'), ('raw', '@raw_lp_decim_p1')]),
+    HoverTool(tooltips=[('time', '$x'), ('val', '@p2'), ('raw', '@raw_lp_decim_p2')])
 ]
 xzoom = [BoxZoomTool(dimensions=['width']) for n in ts_cnt]
 xwzoom = [WheelZoomTool(dimensions=['width']) for n in ts_cnt]
