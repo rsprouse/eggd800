@@ -28,6 +28,6 @@ def butter_lowpass(cut, fs, order=3):
 
 def butter_lowpass_filter(data, cut, fs, order=3):
     b, a = butter_lowpass(cut, fs, order=order)
-    y = scipy.signal.lfilter(b, a, data)
+    y = scipy.signal.filtfilt(b, a, data)
     return y
 
