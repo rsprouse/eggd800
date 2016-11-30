@@ -120,6 +120,8 @@ def load_file(attrname, old, wav):
             p1_cal['regression'].intercept,
             zero_offset
         )
+    else:
+        orig_p1 = raw_lp_p1
     if p2_cal is not None:
         try:
             zero_idx = p2_cal['data']['refinputs'].index(0.0)
@@ -132,6 +134,8 @@ def load_file(attrname, old, wav):
             p2_cal['regression'].intercept,
             zero_offset
         )
+    else:
+        orig_p2 = raw_lp_p2
     orig_lp_p1 = butter_lowpass_filter(orig_p1, cutoff, orig_rate, order)
     orig_lp_p2 = butter_lowpass_filter(orig_p2, cutoff, orig_rate, order)
     decim_factor = 2
