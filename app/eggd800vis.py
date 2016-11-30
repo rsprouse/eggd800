@@ -24,7 +24,6 @@ from bokeh.document import without_document_lock
 from tornado import gen
 
 def play_all():
-    print('playing all')
     # create an audio object
     pya = pyaudio.PyAudio()
 
@@ -32,11 +31,11 @@ def play_all():
     stream = pya.open(
                 format = pyaudio.paInt16,
                 channels = 1,
-                rate = orig_rate,
+                rate = np.int16(np.round(orig_rate)),
                 output = True)
 
     # read data (based on the chunk size)
-    audata = au.astype(np.int16).to_string()
+    audata = orig_au.astype(np.int16).tostring()
     stream.write(audata)
 
     # cleanup stuff.
