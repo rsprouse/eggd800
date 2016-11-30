@@ -17,7 +17,8 @@ from bokeh.models import ColumnDataSource, CustomJS, Span, BoxAnnotation
 from bokeh.models.tools import \
      CrosshairTool, BoxZoomTool, BoxSelectTool, HoverTool, \
      PanTool, ResetTool, SaveTool, TapTool, WheelZoomTool
-from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, Toggle
+from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, \
+     Toggle, Button
 from bokeh.plotting import figure, output_file, output_notebook, show
 from bokeh.document import without_document_lock
 from tornado import gen
@@ -29,13 +30,13 @@ def play_all():
 
     # open stream based on the wave object which has been input.
     stream = pya.open(
-                format = pyaudio.paINT16,
+                format = pyaudio.paInt16,
                 channels = 1,
-                rate = rate,
+                rate = orig_rate,
                 output = True)
 
     # read data (based on the chunk size)
-    audata = au.astype(np.INT16).to_string()
+    audata = au.astype(np.int16).to_string()
     stream.write(audata)
 
     # cleanup stuff.
@@ -360,10 +361,13 @@ tools = [
 
 data_update_in_progress = False
 
+play_all_button = Button(label='All', button_type='success', width=60)
+play_all_button.on_click(play_all)
+
 fsel.on_change('value', load_file)
 source.on_change('selected', selection_change)
 
-curdoc().add_root(row(fsel, msgdiv))
+curdoc().add_root(row(fsel, play_all_button, msgdiv))
 (gp, ch0) = make_plot()
 x_range = ch0.x_range
 curdoc().add_root(row(gp))
