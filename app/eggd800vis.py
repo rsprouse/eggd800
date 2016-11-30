@@ -361,7 +361,7 @@ tools = [
 
 data_update_in_progress = False
 
-play_all_button = Button(label='All', button_type='success', width=60)
+play_all_button = Button(label='Play', button_type='success', width=60)
 play_all_button.on_click(play_all)
 
 fsel.on_change('value', load_file)
