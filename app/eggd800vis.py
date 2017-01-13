@@ -18,7 +18,7 @@ from bokeh.models.tools import \
      CrosshairTool, BoxZoomTool, BoxSelectTool, HoverTool, \
      PanTool, ResetTool, SaveTool, TapTool, WheelZoomTool
 from bokeh.models.widgets import Div, Slider, TextInput, PreText, Select, \
-     Toggle, Button
+     Toggle, Button, CheckboxGroup
 from bokeh.plotting import figure, output_file, output_notebook, show
 from bokeh.document import without_document_lock
 from tornado import gen
@@ -94,7 +94,15 @@ def calibrate(sig, slope=1.0, intercept=0.0, zero_offset=0.0):
     '''Calibrate a signal using slope, intercept, zero.'''
     return (sig - zero_offset - intercept) * slope
 
-def load_file(attrname, old, wav):
+def file_selected(attrname, old, wav):
+    load_file(wav)
+
+def audio_first_selected(selected_elements):
+    wav = fsel.value
+    if wav is not None and wav != '':
+        load_file(wav)
+
+def load_file(wav):
     sys.stderr.write("++++++++++++++++++++++\n")
     global au, orig_au, lx, orig_lx, p1, orig_p1, p2, orig_p2, lp_p1, \
         orig_lp_p1, lp_p2, orig_lp_p2, rate, orig_rate, timepts, \
@@ -103,7 +111,13 @@ def load_file(attrname, old, wav):
     print(p1_cal)
     print(p2_cal)
     (orig_rate, data) = scipy.io.wavfile.read(os.path.join(datadir, wav))
-    (orig_au, orig_lx, raw_p1, raw_p2) = demux(data)
+
+    # 'audio first' is the 0th element in the checkbox group
+    audio_first = True
+    if 0 not in audio_first_checkbox.active:
+        audio_first = False
+    (orig_au, orig_lx, raw_p1, raw_p2) = demux(data, audio_first=audio_first)
+
     orig_rate /= 2            # effective sample rate is half the original rate (one quarter of the EGG-D800's total rate)
     raw_lp_p1 = butter_lowpass_filter(raw_p1, cutoff, orig_rate, order)
     raw_lp_p2 = butter_lowpass_filter(raw_p2, cutoff, orig_rate, order)
@@ -314,7 +328,7 @@ def selection_change(attr, old, new):
 
 # Filename selector
 datadir = os.path.join(os.path.dirname(__file__), 'data')
-fsel = Select(options=['Select a file'] + get_filenames(), width=600)
+fsel = Select(options=['Select a file'] + get_filenames(), width=400)
 
 msgdiv = Div(text='', width=400, height=50)
 
@@ -366,11 +380,13 @@ data_update_in_progress = False
 
 play_all_button = Button(label='Play', button_type='success', width=60)
 play_all_button.on_click(play_all)
+audio_first_checkbox = CheckboxGroup(labels=['audio first'], active=[0])
+audio_first_checkbox.on_click(audio_first_selected)
 
-fsel.on_change('value', load_file)
+fsel.on_change('value', file_selected)
 source.on_change('selected', selection_change)
 
-curdoc().add_root(row(fsel, play_all_button, msgdiv))
+curdoc().add_root(row(fsel, play_all_button, audio_first_checkbox, msgdiv))
 (gp, ch0) = make_plot()
 x_range = ch0.x_range
 curdoc().add_root(row(gp))
