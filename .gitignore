@@ -1,5 +1,7 @@
 *.py[cod]
 
+app/data
+
 # sample data
 app/sampledata
 
