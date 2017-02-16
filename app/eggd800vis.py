@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys
+import subprocess
 import fnmatch
 import numpy as np
 import scipy.io.wavfile
@@ -41,6 +42,16 @@ def play_all():
     # cleanup stuff.
     stream.close()    
     pya.terminate()
+
+def play_all_sox():
+    '''Play all data with sox.'''
+    rate = '{:d}'.format(np.int16(np.round(orig_rate)))
+    args = ['sox', '-t', 'raw', '-b', '16', '-e', 'signed-integer', '-c', '1', '-r', rate, '-', '-d']
+    print(args)
+    proc = subprocess.Popen(args, stdin=subprocess.PIPE)
+    audata = orig_au.astype(np.int16).tostring()
+    proc.stdin.write(audata)
+    proc.communicate()
 
 def get_filenames():
     '''Walk datadir and get all .wav filenamess.'''
@@ -380,13 +391,15 @@ data_update_in_progress = False
 
 play_all_button = Button(label='Play', button_type='success', width=60)
 play_all_button.on_click(play_all)
+play_all_sox_button = Button(label='Play sox', button_type='success', width=60)
+play_all_sox_button.on_click(play_all_sox)
 audio_first_checkbox = CheckboxGroup(labels=['audio first'], active=[0])
 audio_first_checkbox.on_click(audio_first_selected)
 
 fsel.on_change('value', file_selected)
 source.on_change('selected', selection_change)
 
-curdoc().add_root(row(fsel, play_all_button, audio_first_checkbox, msgdiv))
+curdoc().add_root(row(fsel, play_all_button, play_all_sox_button, audio_first_checkbox, msgdiv))
 (gp, ch0) = make_plot()
 x_range = ch0.x_range
 curdoc().add_root(row(gp))
