@@ -1,47 +1,132 @@
 #!/usr/bin/env python
 # vim:fileencoding=utf-8
 
-# Do a short acquisition to find DC offset for EGG-D800.
+# Do a short acquisition to find DC offsets for EGG-D800.
 
+import sys
 import pyaudio
 import wave
 import numpy as np
+import getopt
 from eggd800.signal import demux
 
-channels = 2
-rate = 48000
-bufflen = 1024
-secs = 2
+VERSION = '0.1.0'
 
-pa = pyaudio.PyAudio()
-nchunks = int(rate / bufflen * secs)
+standard_usage_str = 'eggzero [--no-aero] [--rate=N] [--seconds=N]'
+help_usage_str = 'eggzero -h|--help'
+ver_usage_str = 'eggzero -v|--version'
 
-s = pa.open(
-    format=pyaudio.paInt16,
-    channels=channels,
-    rate=rate,
-    input=True,
-    frames_per_buffer=bufflen
-)
+def usage():
+    print('\n' + standard_usage_str)
+    print('\n' + ver_usage_str)
+    print('\n' + help_usage_str)
 
-frames = []
-for idx in np.arange(0, nchunks):
-    data = s.read(bufflen)
-    frames.append(np.fromstring(data, dtype=np.int16))
+def version():
+    print('\neggzero Version {}'.format(VERSION))
 
-npdata = np.hstack(frames)
+def help():
+    print('''
+eggzero - Find DC offsets of EGG-D800 device.
 
-s.stop_stream()
-s.close()
-pa.terminate()
+eggzero captures data from a Laryngograph EGG-D800 USB device and calculates
+the DC offset of the audio, lx, p1, and p2 channels.
 
-# TODO: Verify that this decodes channels in the right way.
-print(npdata.shape)
-npdata = npdata.reshape([2, -1], order='F')
-print(npdata.shape)
-au, lx, p1, p2 = demux(npdata)
+By default eggzero expects the EGG-D800 to be configured to acquire audio,
+lx, p1, and p2 channels and no other channels. DC offset is calculated over
+a two-second window, using a 48000Hz sample rate.
 
-print(np.mean(au))
-print(np.mean(lx))
-print(np.mean(p1))
-print(np.mean(p2))
+Usage:
+
+    {}
+
+    {}
+
+    {}
+
+Optional arguments:
+
+    --no-aero
+    Use the --no-aero argument if the EGG-D800 is not configured to acquire
+    data from the p1 and p2 transducers. DC offsets will be calculated for
+    the audio and lx channels only.
+
+    --seconds=N  # Default 2.0
+    Acquire data for N seconds before calculating DC offsets.
+
+    --rate=N     # Default 48000
+    The --rate parameter is the sample rate at which eggzero will acquire
+    data from the EGG-D800. This value is the same as would be used to record
+    from the EGG-D800 with audio software. Since data is acquired in
+    two-channel format this value should be exactly half the EGG-D800's
+    total data rate, which defaults to 96000 samples/second.
+'''.format(standard_usage_str, ver_usage_str, help_usage_str))
+
+def get_samples(rate=48000, secs=2.0, aero=True):
+    channels = 2
+    bufflen = 4096
+
+    pa = pyaudio.PyAudio()
+    nchunks = int(rate / bufflen * secs)
+
+    s = pa.open(
+        format=pyaudio.paInt16,
+        channels=channels,
+        rate=rate,
+        input=True,
+        frames_per_buffer=bufflen
+    )
+
+    samples = np.empty([0], dtype=np.int16)
+    for idx in np.arange(0, nchunks):
+        data = np.fromstring(s.read(bufflen), dtype=np.int16)
+        samples = np.append(samples, data)
+
+    s.stop_stream()
+    s.close()
+    pa.terminate()
+
+    return samples.reshape([2, -1], order='F')
+
+if __name__ == '__main__':
+
+    try:
+        opts, args = getopt.getopt(
+            sys.argv[1:],
+            'h:v', ['help', 'version', 'no-aero', 'seconds=', 'rate=']
+        )
+    except getopt.GetoptError as e:
+        print(str(e))
+        usage()
+        sys.exit(2)
+
+    rate = 48000
+    aero = True
+    seconds = 2.0
+    for o, a in opts:
+        if o in ('-h', '--help'):
+            help()
+            sys.exit(0)
+        elif o in ('-v', '--version'):
+            version()
+            sys.exit(0)
+        elif o == '--no-aero':
+            aero = False
+        elif o == '--seconds':
+            seconds = float(a)
+        elif o == '--rate':
+            rate = int(a)
+
+    samples = get_samples(rate=rate, secs=seconds, aero=aero)
+
+    if aero is True:
+        au, lx, p1, p2 = demux(samples)
+    else:
+        au = samples[0]
+        lx = samples[1]
+
+    print('DC offsets')
+    print('  audio {:0.4f}'.format(np.mean(au)))
+    print('  lx {:0.4f}'.format(np.mean(lx)))
+    if aero is True:
+        print('  p1 {:0.4f}'.format(np.mean(p1)))
+        print('  p2 {:0.4f}'.format(np.mean(p2)))
