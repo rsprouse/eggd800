@@ -7,6 +7,9 @@ from distutils.extension import Extension
 setup(
   name = 'eggd800',
   packages = ['eggd800'],
+  scripts = [
+    'scripts/eggzero'
+  ],
   classifiers = [
     'Intended Audience :: Science/Research',
     'Topic :: Scientific/Engineering'
