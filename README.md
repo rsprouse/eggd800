@@ -16,7 +16,7 @@ https://github.com/rsprouse/cython-hidapi
 
 The hidapi library is a submodule of cython-hidapi.
 
-It can get installed with:
+It can be installed with:
 
     git clone --recursive https://github.com/rsprouse/cython-hidapi
 
