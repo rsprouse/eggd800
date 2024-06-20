@@ -2,6 +2,10 @@
 
 app/data
 
+# Backup files
+*.swp
+*~
+
 # sample data
 app/sampledata
 
