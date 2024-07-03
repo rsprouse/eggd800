@@ -1,4 +1,4 @@
-name: amznas
+name: eggd800
 channels:
   - conda-forge
 dependencies:
