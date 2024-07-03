@@ -173,7 +173,7 @@ def get_fpath(sessdir, lang, spkr, researcher, tstamp, item, token=None):
 def find_wav(sessdir, lang, spkr, researcher, date, item, token):
     '''Find existing acquisition .wav file.'''
     fre = f'{lang}_{spkr}_{researcher}_{date}T??????_{item}_{token}.wav'
-    return glob.glob(os.path.join(sessdir, fre))
+    return (glob.glob(os.path.join(sessdir, fre)) , fre)
 
 def boolstr(b):
     '''
@@ -408,12 +408,14 @@ def acq(spkr, lang, researcher, item, utt, seconds, autozero, flow, pressure, lx
 @click.option('--date', required=False, default='today', help="YYYYMMDD session date")
 @click.option('--token', type=int, required=False, default=-1, help="Token identifier (optional; defaults to last token)")
 @click.option('--autozero', required=False, default='0', type=int, help='Remove mean from display using _zero_ token (optional)')
+@click.option('--flow', is_flag=True, help='Turn on airflow channels')
+@click.option('--pressure', is_flag=True, help='Turn on pressure channel')
 @click.option('--lx', is_flag=True, help='Turn on LX (EGG) channel')
 @click.option('--cutoff', required=False, default=50, help='Lowpass filter cutoff in Hz (optional; default 50)')
 @click.option('--lporder', required=False, default=3, help='Lowpass filter order (optional; default 3)')
 @click.option('--device', required=False, default='2', help='EGG-D800 device version (optional; default 2)')
-def disp(wavfile, spkr, lang, researcher, item, date, token, autozero, lx,
-    cutoff, lporder, device):
+def disp(wavfile, spkr, lang, researcher, item, date, token, autozero, flow,
+    pressure, lx, cutoff, lporder, device):
     '''
     Display an eggd800 wavfile recording. If given, the --wavfile parameter
     identifies the .wav file to display. Otherwise, the name is constructed
@@ -435,9 +437,11 @@ def disp(wavfile, spkr, lang, researcher, item, date, token, autozero, lx,
             date = dt.strftime(dt.today(), '%Y%m%d')
         sessdir = os.path.join(datadir, lang, spkr, date)
         tokgl = '*' if token < 1 else token
-        wavfiles = find_wav(sessdir, lang, spkr, researcher, date, item, tokgl)
+        wavfiles, fpat = find_wav(
+            sessdir, lang, spkr, researcher, date, item, tokgl
+        )
         if len(wavfiles) == 0:
-            print('Could not find a matching .wav file.')
+            print(f'Could not find a matching .wav file matching {fpat}.')
             exit(0)
         elif len(wavfiles) > 1 and tokgl == '*':
             try:
@@ -452,14 +456,23 @@ def disp(wavfile, spkr, lang, researcher, item, date, token, autozero, lx,
             exit(0)
         else:
             wavfile = wavfiles[0]
-    if lx is True and device == '1':
-        chan = ['audio', 'lx', 'orfl', 'nsfl']
-    elif lx is True:
-        chan = ['audio', 'orfl', 'lx', 'nsfl']
-    elif device == '1':
-        chan = ['audio', None, 'orfl', 'nsfl']
+    if device == '1':
+        chan = [
+            'audio',
+            'lx' if lx is True else None,
+            'orfl' if flow is True else None,
+            'nsfl' if flow is True else None
+        ]
     else:
-        chan = ['audio', 'orfl', None, 'nsfl']
+        chan = [
+            'audio',
+            'lx' if lx is True else None,
+            'oralf' if flow is True else None,
+            'oralp' if pressure is True else None,
+            'nsfl' if flow is True else None
+        ]
+    chan =[c for c in chan if c is not None]
+
     if autozero >= 0:
         sessmd = load_sess_yaml(sessdir, lang=lang, spkr=spkr, today=date)
         chanmeans = []
