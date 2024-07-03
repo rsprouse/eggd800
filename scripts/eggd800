@@ -361,7 +361,6 @@ def acq(spkr, lang, researcher, item, utt, seconds, autozero, flow, pressure, lx
             'nsfl' if flow is True else None
         ]
     chan =[c for c in chan if c is not None]
-    print(chan)
 
     if item == '_zero_':
         stash_chanmeans(
