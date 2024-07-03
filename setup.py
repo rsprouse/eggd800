@@ -6,7 +6,7 @@ from distutils.extension import Extension
 
 setup(
   name = 'eggd800',
-  version='0.0.1',
+  version='0.0.2',
   packages = ['eggd800'],
   scripts = [
     'scripts/eggzero',
