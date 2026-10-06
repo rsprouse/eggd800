@@ -3,8 +3,6 @@ eggd800
 
 Python utilities for configuring the EGG-D800 from Laryngograph.
 
-Current version is alpha. API subject to change.
-
 Requirements
 ============
 
