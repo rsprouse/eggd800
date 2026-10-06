@@ -6,13 +6,12 @@ dependencies:
   - git
   - ipython
   - jupyter
-  - matplotlib=3.4
-  - pandas=1.3
+  - matplotlib
+  - pandas
   - pip
-  - python=3.9
+  - python
   - python-sounddevice
-  - pyyaml=5.4
+  - pyyaml
   - scipy
   - pip:
     - git+https://github.com/rsprouse/eggd800
-    - git+https://github.com/rsprouse/phonlab
