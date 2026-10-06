@@ -26,16 +26,18 @@ Then:
 
     python setup.py install
 
-Install
-=======
+## Installation
 
-To install, first get the code:
+(64-bit Windows only)
 
-    git clone https://github.com/rsprouse/eggd800
+1. Open an Anaconda Prompt from the Start Menu.
+1. Clone the repository: `git clone https://github.com/rsprouse/eggd800`
+1. Prepare the `eggd800` Anaconda environment:
+    * For first time creation: `conda env create -f eggd800\environment.yml`
+    * To update an existing environment: `conda env update -f eggd800\environment.yml --prune`
 
-Then run:
+Also, `Recorder.exe` from laryngograph.com must be copied to the `C:\bin` directory.
 
-    cd eggd800
 
 ## Running the `eggd800` acquisition utility
 
