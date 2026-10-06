@@ -3,8 +3,7 @@ eggd800
 
 Python utilities for configuring the EGG-D800 from Laryngograph.
 
-Requirements
-============
+## Requirements
 
 eggd800 depends on a forked cython-hidapi library that depends on a forked
 hidapi library. These forked libraries add functionality similar to
@@ -16,17 +15,21 @@ The hidapi library is a submodule of cython-hidapi.
 
 It can be installed with:
 
+```bash
     git clone --recursive https://github.com/rsprouse/cython-hidapi
+```
 
 The --recursive parameter clones the `hidapi` submodule at the same time as the parent `cython-hidapi` repository.
 
 Then:
 
+```bash
     python setup.py install
+```
 
 ## Installation
 
-(64-bit Windows only)
+(64-bit Windows only) After the Requirements are satisfied:
 
 1. Open an Anaconda Prompt from the Start Menu.
 1. Clone the repository: `git clone https://github.com/rsprouse/eggd800`
@@ -35,7 +38,6 @@ Then:
     * To update an existing environment: `conda env update -f eggd800\environment.yml --prune`
 
 Also, `Recorder.exe` from laryngograph.com must be copied to the `C:\bin` directory.
-
 
 ## Running the `eggd800` acquisition utility
 
@@ -70,7 +72,8 @@ If you get `Error: No such option: <option>`:
 1. Check to see if the option name was mistyped.
 1. Check to see whether you included a valid subcommand name (usually `acq`) to the script, e.g. `python eggd800\eggd800.py acq ...`.
 
+```bash
     python setup.py install
-
+```
 The setup.py step might require the use of sudo, depending on your Python installation.
 
